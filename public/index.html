@@ -41,10 +41,12 @@
   </div>
 
   <div class="player-hero">
-    <div class="orbit-wrap">
-      <div class="ring r1"><span class="dot"></span></div>
-      <div class="ring r2"><span class="dot" style="background:var(--gold);box-shadow:0 0 8px 1px rgba(201,162,75,0.5);"></span></div>
-      <div class="ring r3"></div>
+    <div class="orbit-wrap" id="scrubberWrap" style="cursor: grab;">
+      <div class="rings-container" style="position:absolute; inset:0; width:100%; height:100%; transition: transform 0.1s linear;">
+        <div class="ring r1"><span class="dot"></span></div>
+        <div class="ring r2"><span class="dot" style="background:var(--gold);box-shadow:0 0 8px 1px rgba(201,162,75,0.5);"></span></div>
+        <div class="ring r3"></div>
+      </div>
       <div class="core" id="playPauseBtn">
         <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
       </div>
@@ -230,6 +232,79 @@ async function loadListeners(){
 // so an open tab naturally advances to the next track without a manual refresh
 setInterval(loadLive, 15000);
 setInterval(loadListeners, 15000);
+
+// Rotating Scrubber Logic
+const scrubberWrap = document.getElementById('scrubberWrap');
+const ringsContainer = scrubberWrap ? scrubberWrap.querySelector('.rings-container') : null;
+let isScrubbing = false;
+let startAngle = 0;
+let currentRotationDeg = 0;
+
+function getAngle(x, y) {
+  if (!scrubberWrap) return 0;
+  const rect = scrubberWrap.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  return Math.atan2(y - centerY, x - centerX) * (180 / Math.PI);
+}
+
+function startScrub(e) {
+  if (e.target.closest('#playPauseBtn') || !audioEl.duration) return;
+  e.preventDefault();
+  isScrubbing = true;
+  scrubberWrap.style.cursor = 'grabbing';
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  startAngle = getAngle(clientX, clientY);
+}
+
+function doScrub(e) {
+  if (!isScrubbing || !audioEl.duration) return;
+  e.preventDefault();
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  
+  const angle = getAngle(clientX, clientY);
+  let delta = angle - startAngle;
+  
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  
+  // 1 full rotation (360deg) = 90 seconds of scrub
+  const secondsPerDegree = 90 / 360; 
+  let newTime = audioEl.currentTime + (delta * secondsPerDegree);
+  newTime = Math.max(0, Math.min(newTime, audioEl.duration));
+  audioEl.currentTime = newTime;
+  
+  currentRotationDeg += delta;
+  if (ringsContainer) {
+    ringsContainer.style.transform = `rotate(${currentRotationDeg}deg)`;
+  }
+  
+  startAngle = angle;
+}
+
+function endScrub() {
+  isScrubbing = false;
+  if (scrubberWrap) scrubberWrap.style.cursor = 'grab';
+}
+
+if (scrubberWrap) {
+  scrubberWrap.addEventListener('mousedown', startScrub);
+  window.addEventListener('mousemove', doScrub);
+  window.addEventListener('mouseup', endScrub);
+  
+  scrubberWrap.addEventListener('touchstart', startScrub, {passive: false});
+  window.addEventListener('touchmove', doScrub, {passive: false});
+  window.addEventListener('touchend', endScrub);
+}
+
+// Disable loadLive seeking if user is scrubbing or has scrubbed to break sync
+let hasBrokenSync = false;
+scrubberWrap.addEventListener('mousedown', () => hasBrokenSync = true);
+scrubberWrap.addEventListener('touchstart', () => hasBrokenSync = true);
 
 (async function init(){
   await loadRotations();
