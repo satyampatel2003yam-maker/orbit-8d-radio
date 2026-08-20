@@ -122,11 +122,15 @@ function renderNowPlaying(song, offsetSeconds){
       tagsEl.appendChild(span);
     }
 
+    const wasPlaying = !audioEl.paused;
     audioEl.src = song.fileUrl;
     
     const setTime = () => {
       audioEl.currentTime = offsetSeconds;
-      audioEl.play().catch(() => {});
+      if (wasPlaying || window.justEnded) {
+        audioEl.play().catch(() => {});
+        window.justEnded = false;
+      }
     };
 
     if (audioEl.readyState >= 1) {
@@ -180,7 +184,11 @@ audioEl.addEventListener('play', () => {
 audioEl.addEventListener('pause', () => {
   document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
 });
-audioEl.addEventListener('ended', () => { currentSongId = null; loadLive(); });
+audioEl.addEventListener('ended', () => { 
+  window.justEnded = true;
+  currentSongId = null; 
+  loadLive(); 
+});
 
 async function loadListeners(){
   try {
