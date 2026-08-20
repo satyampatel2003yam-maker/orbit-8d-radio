@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit — 8D audio, live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ============ MAIN APP SCREEN ============ -->
+<section id="app" class="screen active">
+  <div class="topbar">
+    <div class="logo"><span class="dotmark"></span> Orbit</div>
+    <div class="rotations" id="rotationTabs"></div>
+    <div class="listeners"><span class="live-dot"></span> <span id="listenerCount">--</span> listening</div>
+  </div>
+
+  <div class="player-hero">
+    <div class="orbit-wrap" id="scrubberWrap" style="cursor: grab;">
+      <div class="rings-container" style="position:absolute; inset:0; width:100%; height:100%; transition: transform 0.1s linear;">
+        <div class="ring r1"><span class="dot"></span></div>
+        <div class="ring r2"><span class="dot" style="background:var(--gold);box-shadow:0 0 8px 1px rgba(201,162,75,0.5);"></span></div>
+        <div class="ring r3"></div>
+      </div>
+      <div class="core" id="playPauseBtn">
+        <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>
+    <div class="track-title" id="trackTitle">Loading...</div>
+    <div class="track-meta" id="trackMeta">&nbsp;</div>
+    <div class="tag-row" id="trackTags"></div>
+  </div>
+
+  <div class="content-wrap">
+    <div class="section-label" id="playlistLabel">Up next</div>
+    <div class="playlist" id="playlist">
+      <div class="empty-state">Loading playlist...</div>
+    </div>
+  </div>
+
+  <footer>
+    orbit &middot; live 8D radio &nbsp;&middot;&nbsp; <a href="/admin.html">Admin</a>
+  </footer>
+</section>
+
+<audio id="audioEl" preload="auto"></audio>
+
+<script>
+const API = '';
+let rotations = [];
+let currentRotation = null;
+let currentSongId = null;
+const audioEl = document.getElementById('audioEl');
+
+async function loadRotations(){
+  const res = await fetch(`${API}/api/rotations`);
+  rotations = await res.json();
+  const activeRes = await fetch(`${API}/api/rotations/active`);
+  const { activeRotation } = await activeRes.json();
+  currentRotation = activeRotation;
+
+  const tabsEl = document.getElementById('rotationTabs');
+  tabsEl.innerHTML = '';
+  rotations.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'rotation-tab' + (r.id === currentRotation ? ' active' : '');
+    btn.textContent = r.name;
+    btn.onclick = () => switchRotation(r.id);
+    tabsEl.appendChild(btn);
+  });
+}
+
+function switchRotation(id){
+  currentRotation = id;
+  document.querySelectorAll('.rotation-tab').forEach((el, i) => {
+    el.classList.toggle('active', rotations[i].id === id);
+  });
+  loadLive();
+}
+
+async function loadLive(){
+  const label = rotations.find(r => r.id === currentRotation)?.name || '';
+  document.getElementById('playlistLabel').textContent = `Up next · ${label} rotation`;
+
+  try {
+    const res = await fetch(`${API}/api/live/${currentRotation}`);
+    if (!res.ok) {
+      document.getElementById('trackTitle').textContent = 'Nothing uploaded yet';
+      document.getElementById('trackMeta').textContent = 'Add tracks to this rotation from the admin panel';
+      document.getElementById('playlist').innerHTML = '<div class="empty-state">This rotation is empty. Upload some 8D tracks in the admin panel.</div>';
+      audioEl.pause();
+      return;
+    }
+    const data = await res.json();
+    renderNowPlaying(data.song, data.offsetSeconds);
+    renderPlaylist(data.playlist, data.song.id);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderNowPlaying(song, offsetSeconds){
+  if (song.id !== currentSongId) {
+    currentSongId = song.id;
+    document.getElementById('trackTitle').textContent = song.title;
+    document.getElementById('trackMeta').textContent = [song.film, song.year].filter(Boolean).join(' · ');
+    const tagsEl = document.getElementById('trackTags');
+    tagsEl.innerHTML = '';
+    (song.tags || []).forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = t;
+      tagsEl.appendChild(span);
+    });
+    if (song.bpm) {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = song.bpm + ' bpm';
+      tagsEl.appendChild(span);
+    }
+
+    audioEl.src = song.fileUrl;
+    
+    const setTime = () => {
+      audioEl.currentTime = offsetSeconds;
+      audioEl.play().catch(() => {});
+    };
+
+    if (audioEl.readyState >= 1) {
+      setTime();
+    } else {
+      audioEl.addEventListener('loadedmetadata', function onLoaded() {
+        audioEl.removeEventListener('loadedmetadata', onLoaded);
+        setTime();
+      });
+    }
+  }
+}
+
+function renderPlaylist(songs, nowPlayingId){
+  const el = document.getElementById('playlist');
+  if (!songs.length) {
+    el.innerHTML = '<div class="empty-state">This rotation is empty.</div>';
+    return;
+  }
+  el.innerHTML = '';
+  songs.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'track-row' + (s.id === nowPlayingId ? ' now-playing' : '');
+    const mins = Math.floor((s.duration || 0) / 60);
+    const secs = String((s.duration || 0) % 60).padStart(2, '0');
+    row.innerHTML = `
+      <span class="track-num">${String(i + 1).padStart(2, '0')}</span>
+      <div class="track-info">
+        <div class="name">${escapeHtml(s.title)}</div>
+        <div class="film">${escapeHtml([s.film, s.year].filter(Boolean).join(', '))}</div>
+      </div>
+      <span class="track-dur">${mins}:${secs}</span>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+document.getElementById('playPauseBtn').addEventListener('click', () => {
+  if (audioEl.paused) audioEl.play().catch(() => {});
+  else audioEl.pause();
+});
+audioEl.addEventListener('play', () => {
+  document.getElementById('playIcon').innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+});
+audioEl.addEventListener('pause', () => {
+  document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+});
+audioEl.addEventListener('ended', () => { currentSongId = null; loadLive(); });
+
+async function loadListeners(){
+  try {
+    const res = await fetch(`${API}/api/listeners`);
+    const { count } = await res.json();
+    document.getElementById('listenerCount').textContent = count;
+  } catch (e) {}
+}
+
+// Poll periodically - only actually resyncs audio when the live song has changed,
+// so an open tab naturally advances to the next track without a manual refresh
+setInterval(loadLive, 15000);
+setInterval(loadListeners, 15000);
+
+// Rotating Scrubber Logic
+const scrubberWrap = document.getElementById('scrubberWrap');
+const ringsContainer = scrubberWrap ? scrubberWrap.querySelector('.rings-container') : null;
+let isScrubbing = false;
+let startAngle = 0;
+let currentRotationDeg = 0;
+
+function getAngle(x, y) {
+  if (!scrubberWrap) return 0;
+  const rect = scrubberWrap.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  return Math.atan2(y - centerY, x - centerX) * (180 / Math.PI);
+}
+
+function startScrub(e) {
+  if (e.target.closest('#playPauseBtn') || !audioEl.duration) return;
+  e.preventDefault();
+  isScrubbing = true;
+  scrubberWrap.style.cursor = 'grabbing';
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  startAngle = getAngle(clientX, clientY);
+}
+
+function doScrub(e) {
+  if (!isScrubbing || !audioEl.duration) return;
+  e.preventDefault();
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  
+  const angle = getAngle(clientX, clientY);
+  let delta = angle - startAngle;
+  
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  
+  // 1 full rotation (360deg) = 90 seconds of scrub
+  const secondsPerDegree = 90 / 360; 
+  let newTime = audioEl.currentTime + (delta * secondsPerDegree);
+  newTime = Math.max(0, Math.min(newTime, audioEl.duration));
+  audioEl.currentTime = newTime;
+  
+  currentRotationDeg += delta;
+  if (ringsContainer) {
+    ringsContainer.style.transform = `rotate(${currentRotationDeg}deg)`;
+  }
+  
+  startAngle = angle;
+}
+
+function endScrub() {
+  isScrubbing = false;
+  if (scrubberWrap) scrubberWrap.style.cursor = 'grab';
+}
+
+if (scrubberWrap) {
+  scrubberWrap.addEventListener('mousedown', startScrub);
+  window.addEventListener('mousemove', doScrub);
+  window.addEventListener('mouseup', endScrub);
+  
+  scrubberWrap.addEventListener('touchstart', startScrub, {passive: false});
+  window.addEventListener('touchmove', doScrub, {passive: false});
+  window.addEventListener('touchend', endScrub);
+}
+
+// Disable loadLive seeking if user is scrubbing or has scrubbed to break sync
+let hasBrokenSync = false;
+scrubberWrap.addEventListener('mousedown', () => hasBrokenSync = true);
+scrubberWrap.addEventListener('touchstart', () => hasBrokenSync = true);
+
+(async function init(){
+  await loadRotations();
+  await loadLive();
+  await loadListeners();
+})();
+</script>
+</body>
+</html>
