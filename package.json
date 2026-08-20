@@ -1,0 +1,19 @@
+{
+  "name": "orbit-8d-radio",
+  "version": "1.0.0",
+  "description": "Orbit - a live 8D audio radio station with admin playlist management",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "setup-admin": "node scripts/set-admin-password.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^2.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "music-metadata": "^7.14.0"
+  }
+}

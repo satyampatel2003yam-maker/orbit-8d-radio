@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<section id="loginScreen" class="login-shell">
+  <div class="admin-card">
+    <h2>Admin sign in</h2>
+    <div class="sub">Manage rotations, upload tracks, edit playlists.</div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="loginUsername" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div class="form-error" id="loginError"></div>
+    <button class="btn-signin" id="loginBtn">Sign in</button>
+    <a href="/"><button class="btn-close">Back to site</button></a>
+  </div>
+</section>
+
+<!-- ============ ADMIN DASHBOARD ============ -->
+<section id="dashboard" class="admin-shell" style="display:none;">
+  <div class="admin-header">
+    <h1>Orbit admin</h1>
+    <button class="btn-logout" id="logoutBtn">Sign out</button>
+  </div>
+
+  <div class="upload-card">
+    <h2>Upload a track</h2>
+    <form id="uploadForm">
+      <div class="form-grid">
+        <div class="field">
+          <label>Title</label>
+          <input type="text" id="f-title" required placeholder="e.g. Tujhe Dekha To — 8D">
+        </div>
+        <div class="field">
+          <label>Rotation</label>
+          <select id="f-rotation" required></select>
+        </div>
+        <div class="field">
+          <label>Film</label>
+          <input type="text" id="f-film" placeholder="e.g. Dilwale Dulhania Le Jayenge">
+        </div>
+        <div class="field">
+          <label>Year</label>
+          <input type="text" id="f-year" placeholder="e.g. 1995">
+        </div>
+        <div class="field">
+          <label>BPM (optional)</label>
+          <input type="text" id="f-bpm" placeholder="e.g. 88">
+        </div>
+        <div class="field">
+          <label>Tags (comma separated)</label>
+          <input type="text" id="f-tags" placeholder="e.g. binaural, romantic">
+        </div>
+        <div class="field full">
+          <label>Audio file (mp3, wav, m4a, ogg — up to 50MB)</label>
+          <input type="file" id="f-audio" accept="audio/*" required>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary" id="uploadBtn">Upload track</button>
+      <div class="upload-status" id="uploadStatus"></div>
+    </form>
+  </div>
+
+  <div id="rotationGroups"></div>
+</section>
+
+<script>
+const API = '';
+let token = localStorage.getItem('orbit_admin_token') || null;
+let rotations = [];
+let allSongs = [];
+let draggedId = null;
+
+function showDashboard(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  loadRotationsAndSongs();
+}
+function showLogin(){
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+}
+
+async function authedFetch(url, opts = {}){
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(url, opts);
+  if (res.status === 401 || res.status === 403) {
+    token = null;
+    localStorage.removeItem('orbit_admin_token');
+    showLogin();
+    throw new Error('Session expired');
+  }
+  return res;
+}
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.classList.remove('active');
+
+  try {
+    const res = await fetch(`${API}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Sign in failed.';
+      errEl.classList.add('active');
+      return;
+    }
+    token = data.token;
+    localStorage.setItem('orbit_admin_token', token);
+    showDashboard();
+  } catch (e) {
+    errEl.textContent = 'Could not reach the server.';
+    errEl.classList.add('active');
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  token = null;
+  localStorage.removeItem('orbit_admin_token');
+  showLogin();
+});
+
+async function loadRotationsAndSongs(){
+  const rRes = await fetch(`${API}/api/rotations`);
+  rotations = await rRes.json();
+
+  const select = document.getElementById('f-rotation');
+  select.innerHTML = rotations.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
+  const sRes = await authedFetch(`${API}/api/admin/songs`);
+  allSongs = await sRes.json();
+  renderRotationGroups();
+}
+
+function renderRotationGroups(){
+  const container = document.getElementById('rotationGroups');
+  container.innerHTML = '';
+  rotations.forEach(r => {
+    const songs = allSongs.filter(s => s.rotation === r.id).sort((a,b) => (a.order??0) - (b.order??0));
+    const group = document.createElement('div');
+    group.className = 'rotation-group';
+    group.innerHTML = `<h3>${r.name} <span class="count">${songs.length} track${songs.length===1?'':'s'}</span></h3>`;
+
+    const list = document.createElement('div');
+    list.className = 'admin-track-list';
+    list.dataset.rotation = r.id;
+
+    if (!songs.length) {
+      list.innerHTML = '<div class="empty-state">No tracks yet.</div>';
+    } else {
+      songs.forEach(s => list.appendChild(buildTrackRow(s)));
+    }
+    group.appendChild(list);
+    container.appendChild(group);
+  });
+}
+
+function buildTrackRow(song){
+  const row = document.createElement('div');
+  row.className = 'admin-track-row';
+  row.draggable = true;
+  row.dataset.id = song.id;
+  row.dataset.rotation = song.rotation;
+
+  const mins = Math.floor((song.duration||0)/60);
+  const secs = String((song.duration||0)%60).padStart(2,'0');
+
+  row.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder">&#8942;&#8942;</span>
+    <div class="grow">
+      <div class="name">${escapeHtml(song.title)}</div>
+      <div class="meta">${escapeHtml([song.film, song.year].filter(Boolean).join(', '))} &middot; ${mins}:${secs}</div>
+    </div>
+    <button class="icon-btn" title="Move to another rotation" data-action="move">
+      <svg viewBox="0 0 24 24"><path d="M9 3L5 7l4 4V8h6v6h-3l4 4 4-4h-3V6H9z"/></svg>
+    </button>
+    <button class="icon-btn" title="Edit" data-action="edit">
+      <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </button>
+    <button class="icon-btn danger" title="Delete" data-action="delete">
+      <svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7zM9 4h6l1 2H8l1-2z"/></svg>
+    </button>
+  `;
+
+  row.querySelector('[data-action="delete"]').onclick = () => deleteSong(song.id, song.title);
+  row.querySelector('[data-action="edit"]').onclick = () => editSong(song);
+  row.querySelector('[data-action="move"]').onclick = () => moveSong(song);
+
+  row.addEventListener('dragstart', () => { draggedId = song.id; row.classList.add('dragging'); });
+  row.addEventListener('dragend', () => { row.classList.remove('dragging'); });
+  row.addEventListener('dragover', (e) => e.preventDefault());
+  row.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === song.id) return;
+    reorderWithinList(row.closest('.admin-track-list'), draggedId, song.id);
+  });
+
+  return row;
+}
+
+async function reorderWithinList(listEl, draggedSongId, targetSongId){
+  const rotationId = listEl.dataset.rotation;
+  const rows = Array.from(listEl.querySelectorAll('.admin-track-row'));
+  const ids = rows.map(r => r.dataset.id);
+  const from = ids.indexOf(draggedSongId);
+  const to = ids.indexOf(targetSongId);
+  ids.splice(to, 0, ids.splice(from, 1)[0]);
+
+  await authedFetch(`${API}/api/admin/rotations/${rotationId}/reorder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderedIds: ids }),
+  });
+  await loadRotationsAndSongs();
+}
+
+async function deleteSong(id, title){
+  if (!confirm(`Delete "${title}"? This removes the audio file too.`)) return;
+  await authedFetch(`${API}/api/admin/songs/${id}`, { method: 'DELETE' });
+  await loadRotationsAndSongs();
+}
+
+async function editSong(song){
+  const title = prompt('Title', song.title);
+  if (title === null) return;
+  const film = prompt('Film', song.film || '');
+  const year = prompt('Year', song.year || '');
+  const tags = prompt('Tags (comma separated)', (song.tags||[]).join(', '));
+
+  await authedFetch(`${API}/api/admin/songs/${song.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, film, year, tags }),
+  });
+  await loadRotationsAndSongs();
+}
+
+async function moveSong(song){
+  const options = rotations.map((r, i) => `${i+1}. ${r.name}`).join('\n');
+  const choice = prompt(`Move "${song.title}" to which rotation?\n\n${options}\n\nEnter a number:`);
+  const idx = parseInt(choice, 10) - 1;
+  if (isNaN(idx) || !rotations[idx]) return;
+
+  await authedFetch(`${API}/api/admin/songs/${song.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rotation: rotations[idx].id }),
+  });
+  await loadRotationsAndSongs();
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('uploadBtn');
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.textContent = '';
+  statusEl.className = 'upload-status';
+
+  const fileInput = document.getElementById('f-audio');
+  if (!fileInput.files.length) return;
+
+  const formData = new FormData();
+  formData.append('audio', fileInput.files[0]);
+  formData.append('title', document.getElementById('f-title').value);
+  formData.append('rotation', document.getElementById('f-rotation').value);
+  formData.append('film', document.getElementById('f-film').value);
+  formData.append('year', document.getElementById('f-year').value);
+  formData.append('bpm', document.getElementById('f-bpm').value);
+  formData.append('tags', document.getElementById('f-tags').value);
+
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  try {
+    const res = await authedFetch(`${API}/api/admin/songs`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.textContent = data.error || 'Upload failed.';
+      statusEl.classList.add('err');
+    } else {
+      statusEl.textContent = `"${data.title}" uploaded.`;
+      statusEl.classList.add('ok');
+      e.target.reset();
+      await loadRotationsAndSongs();
+    }
+  } catch (err) {
+    statusEl.textContent = 'Could not reach the server.';
+    statusEl.classList.add('err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Upload track';
+  }
+});
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+// init
+if (token) showDashboard(); else showLogin();
+</script>
+</body>
+</html>
