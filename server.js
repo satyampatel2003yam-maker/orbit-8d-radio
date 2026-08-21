@@ -87,11 +87,25 @@ app.get('/api/live/:rotationId', (req, res) => {
   });
 });
 
-// Simulated live listener count - swap for real socket tracking later if you want exact numbers
+// Track active listeners
+const activeListeners = new Map();
+
 app.get('/api/listeners', (req, res) => {
-  const base = 40;
-  const wave = Math.floor(Math.sin(Date.now() / 90000) * 30) + 30;
-  res.json({ count: base + wave + Math.floor(Math.random() * 8) });
+  const now = Date.now();
+  const clientId = req.query.clientId || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  
+  if (clientId) {
+    activeListeners.set(clientId, now);
+  }
+  
+  // Clean up inactive listeners (not seen in the last 35 seconds)
+  for (const [key, timestamp] of activeListeners.entries()) {
+    if (now - timestamp > 35000) {
+      activeListeners.delete(key);
+    }
+  }
+  
+  res.json({ count: activeListeners.size });
 });
 
 // =====================================================
