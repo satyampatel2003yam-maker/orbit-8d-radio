@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const { parseBuffer } = require('music-metadata');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const db = require('./db');
 const { ROTATIONS, getActiveRotationId, getLivePosition } = require('./rotations');
@@ -14,6 +16,18 @@ const { requireAdmin } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Apply basic HTTP security headers
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// Rate limiter for login route to prevent brute-force attacks
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 login requests per windowMs
+  message: { error: 'Too many login attempts from this IP, please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 if (!process.env.JWT_SECRET || !process.env.ADMIN_PASSWORD_HASH) {
   console.warn(
@@ -112,7 +126,7 @@ app.get('/api/listeners', (req, res) => {
 // ADMIN AUTH
 // =====================================================
 
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', loginLimiter, (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required.' });
