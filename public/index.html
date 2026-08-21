@@ -80,36 +80,35 @@
     </div>
   </div>
 
+  <div class="playlists-area" id="playlistsContainer">
+    <!-- Filled via JS -->
+  </div>
+
   <footer>
     8D Adda &middot; Live Radio &nbsp;&middot;&nbsp; <a href="/admin.html">Admin</a>
   </footer>
   <div class="bottom-bar">
-    <button class="action-btn" id="reqBtn">
+    <button class="action-btn" id="reqBtn" onclick="document.getElementById('requestModal').classList.add('active')">
       <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
       Request Song
     </button>
   </div>
-</div>
-
-<div class="playlists-area" id="playlistsContainer">
-  <!-- Filled via JS -->
-</div>
   </div> <!-- /.glass-app-container -->
 
-<!-- Request Song Modal -->
-<div class="modal-overlay" id="requestModal" onclick="if(event.target===this) this.classList.remove('active')">
-  <div class="admin-card" style="max-width:300px;">
-    <h2>Request a Song</h2>
-    <div class="sub" style="margin-bottom:16px;">We play requests in the "On Request" station.</div>
-    <div class="field">
-      <input type="text" id="requestInput" placeholder="Song name & artist..." autocomplete="off">
+  <!-- Request Song Modal -->
+  <div class="modal-overlay" id="requestModal" onclick="if(event.target===this) this.classList.remove('active')">
+    <div class="admin-card" style="max-width:300px;">
+      <h2>Request a Song</h2>
+      <div class="sub" style="margin-bottom:16px;">We play requests in the "On Request" station.</div>
+      <div class="field">
+        <input type="text" id="requestInput" placeholder="Song name & artist..." autocomplete="off">
+      </div>
+      <div class="form-error" id="requestError"></div>
+      <div class="upload-status" id="requestSuccess" style="display:none; text-align:center; font-weight:500; margin-bottom:10px;"></div>
+      <button class="btn-signin" onclick="submitRequest()" id="requestSubmitBtn">Submit Request</button>
+      <button class="btn-close" onclick="document.getElementById('requestModal').classList.remove('active'); document.getElementById('requestSuccess').style.display='none'; document.getElementById('requestInput').value='';">Cancel</button>
     </div>
-    <div class="form-error" id="requestError"></div>
-    <div class="upload-status" id="requestSuccess" style="display:none; text-align:center; font-weight:500; margin-bottom:10px;"></div>
-    <button class="btn-signin" onclick="submitRequest()" id="requestSubmitBtn">Submit Request</button>
-    <button class="btn-close" onclick="document.getElementById('requestModal').classList.remove('active'); document.getElementById('requestSuccess').style.display='none'; document.getElementById('requestInput').value='';">Cancel</button>
   </div>
-</div>
 </section>
 
 <audio id="audioEl" preload="auto"></audio>
@@ -234,11 +233,10 @@ async function loadRotations(){
   const { activeRotation } = await activeRes.json();
   currentRotation = activeRotation;
   
-  // We don't hardcode classes anymore!
-  // Find current rotation data to set its background
+  // Set background for BOTH welcome and app screen (same body background)
   const rotData = rotations.find(r => r.id === currentRotation) || rotations[0];
   if(rotData && rotData.bgImageUrl) {
-    document.body.style.backgroundImage = `linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${rotData.bgImageUrl}')`;
+    document.body.style.backgroundImage = `linear-gradient(135deg, rgba(20,16,12,0.72) 0%, rgba(40,28,16,0.55) 50%, rgba(20,16,12,0.82) 100%), url('${rotData.bgImageUrl}')`;
   }
 
   const tabsEl = document.getElementById('rotationTabs');
@@ -264,7 +262,7 @@ function switchRotation(id){
   
   const rotData = rotations.find(r => r.id === id);
   if(rotData && rotData.bgImageUrl) {
-    document.body.style.backgroundImage = `linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${rotData.bgImageUrl}')`;
+    document.body.style.backgroundImage = `linear-gradient(135deg, rgba(20,16,12,0.72) 0%, rgba(40,28,16,0.55) 50%, rgba(20,16,12,0.82) 100%), url('${rotData.bgImageUrl}')`;
   }
   
   loadLive();
