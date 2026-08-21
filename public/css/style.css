@@ -41,6 +41,12 @@ body.bg-study-8d {
     url('/images/study-8d-bg.png') no-repeat center center fixed;
   background-size: cover;
 }
+body.bg-sunrise {
+  background: 
+    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
+    url('/images/sunrise-bg.png') no-repeat center center fixed;
+  background-size: cover;
+}
 ::selection{background:var(--gold-dim);color:var(--deepest);}
 a{color:inherit;text-decoration:none;}
 .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;}
