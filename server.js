@@ -64,6 +64,10 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.get('/player.html', (req, res) => {
+  res.redirect('/');
+});
+
 // ---------- File upload setup ----------
 const upload = multer({
   storage: multer.memoryStorage(),
