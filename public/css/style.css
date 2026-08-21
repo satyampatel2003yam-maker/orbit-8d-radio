@@ -32,7 +32,7 @@ body.bg-night-bass {
 body.bg-chill-evening {
   background: 
     linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/chill-evening-bg.png') no-repeat center center fixed;
+    url('/images/chill-evening-bg.jpg') no-repeat center center fixed;
   background-size: cover;
 }
 body.bg-study-8d {
