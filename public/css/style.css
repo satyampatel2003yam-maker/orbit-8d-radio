@@ -23,6 +23,12 @@ body{
   overflow-x:hidden;
   min-height:100vh;
 }
+body.bg-night-bass {
+  background: 
+    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
+    url('/images/night-bass-bg.png') no-repeat center center fixed;
+  background-size: cover;
+}
 ::selection{background:var(--gold-dim);color:var(--deepest);}
 a{color:inherit;text-decoration:none;}
 .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;}

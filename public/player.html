@@ -137,6 +137,8 @@ async function loadRotations(){
   const activeRes = await fetch(`${API}/api/rotations/active`);
   const { activeRotation } = await activeRes.json();
   currentRotation = activeRotation;
+  
+  if(currentRotation === 'night-bass') document.body.classList.add('bg-night-bass');
 
   const tabsEl = document.getElementById('rotationTabs');
   tabsEl.innerHTML = '';
@@ -154,6 +156,13 @@ function switchRotation(id){
   document.querySelectorAll('.rotation-tab').forEach((el, i) => {
     el.classList.toggle('active', rotations[i].id === id);
   });
+  
+  if(id === 'night-bass') {
+    document.body.classList.add('bg-night-bass');
+  } else {
+    document.body.classList.remove('bg-night-bass');
+  }
+  
   loadLive();
 }
 
