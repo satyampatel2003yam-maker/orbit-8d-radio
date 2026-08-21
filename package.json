@@ -9,11 +9,12 @@
     "setup-admin": "node scripts/set-admin-password.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "multer": "^2.0.1",
-    "jsonwebtoken": "^9.0.2",
+    "@aws-sdk/client-s3": "^3.1115.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
     "music-metadata": "^7.14.0"
   }
 }
