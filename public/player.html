@@ -139,7 +139,6 @@ async function loadRotations(){
   currentRotation = activeRotation;
   
   if(currentRotation === 'night-bass') document.body.classList.add('bg-night-bass');
-  if(currentRotation === 'chill-evening') document.body.classList.add('bg-chill-evening');
 
   const tabsEl = document.getElementById('rotationTabs');
   tabsEl.innerHTML = '';
@@ -158,12 +157,10 @@ function switchRotation(id){
     el.classList.toggle('active', rotations[i].id === id);
   });
   
-  document.body.classList.remove('bg-night-bass', 'bg-chill-evening');
-  
   if(id === 'night-bass') {
     document.body.classList.add('bg-night-bass');
-  } else if(id === 'chill-evening') {
-    document.body.classList.add('bg-chill-evening');
+  } else {
+    document.body.classList.remove('bg-night-bass');
   }
   
   loadLive();
