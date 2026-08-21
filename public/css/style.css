@@ -235,3 +235,16 @@ footer a:hover{color:var(--gold-bright);}
 .admin-track-row.dragging{opacity:0.4;}
 
 .login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+
+/* ---------- MOBILE OPTIMIZATION FOR 4K BACKGROUNDS ---------- */
+/* iOS Safari has a bug where 'background-attachment: fixed' causes extreme zoom & blurriness. */
+@media (max-width: 768px) {
+  body.bg-night-bass, 
+  body.bg-chill-evening, 
+  body.bg-study-8d, 
+  body.bg-sunrise, 
+  body.bg-on-request {
+    background-attachment: scroll !important;
+    background-position: center top !important; /* Shows the best part of the image on tall screens */
+  }
+}
