@@ -1,76 +1,84 @@
-// Lightweight JSON-file "database". No native modules, works anywhere Node runs.
-// For a bigger catalogue later, swap this file for a real DB without touching the routes much -
-// every function here just needs to keep returning/accepting the same shapes.
+const mongoose = require('mongoose');
 
-const fs = require('fs');
-const path = require('path');
+const songSchema = new mongoose.Schema({
+  id: String,
+  title: String,
+  film: String,
+  year: String,
+  rotation: String,
+  bpm: String,
+  tags: [String],
+  fileUrl: String,
+  storageKey: String,
+  duration: Number,
+  order: Number,
+  uploadedAt: String
+});
 
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_PATH = path.join(DATA_DIR, 'db.json');
+const Song = mongoose.models.Song || mongoose.model('Song', songSchema);
 
-function readDB() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DB_PATH)) {
-    const initial = { songs: [], rotationState: {} };
-    fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2));
-    return initial;
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  if (!process.env.MONGO_URI) {
+    console.error("MONGO_URI is missing in .env! Cannot connect to database.");
+    return;
   }
-  const raw = fs.readFileSync(DB_PATH, 'utf-8');
-  return JSON.parse(raw);
+  await mongoose.connect(process.env.MONGO_URI);
+  isConnected = true;
+  console.log("Connected to MongoDB!");
 }
 
-function writeDB(data) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+async function getAllSongs() {
+  await connectDB();
+  return Song.find({}).lean();
 }
 
-function getAllSongs() {
-  return readDB().songs;
+async function getSongsByRotation(rotationId) {
+  await connectDB();
+  return Song.find({ rotation: rotationId }).sort({ order: 1 }).lean();
 }
 
-function getSongsByRotation(rotationId) {
-  return readDB().songs.filter((s) => s.rotation === rotationId);
+async function getSongById(id) {
+  await connectDB();
+  return Song.findOne({ id }).lean();
 }
 
-function getSongById(id) {
-  return readDB().songs.find((s) => s.id === id);
+async function addSong(songData) {
+  await connectDB();
+  const song = new Song(songData);
+  await song.save();
+  return song.toObject();
 }
 
-function addSong(song) {
-  const data = readDB();
-  data.songs.push(song);
-  writeDB(data);
+async function updateSong(id, updates) {
+  await connectDB();
+  const song = await Song.findOneAndUpdate({ id }, updates, { new: true }).lean();
   return song;
 }
 
-function updateSong(id, updates) {
-  const data = readDB();
-  const idx = data.songs.findIndex((s) => s.id === id);
-  if (idx === -1) return null;
-  data.songs[idx] = { ...data.songs[idx], ...updates };
-  writeDB(data);
-  return data.songs[idx];
+async function deleteSong(id) {
+  await connectDB();
+  const result = await Song.deleteOne({ id });
+  return result.deletedCount > 0;
 }
 
-function deleteSong(id) {
-  const data = readDB();
-  const before = data.songs.length;
-  data.songs = data.songs.filter((s) => s.id !== id);
-  writeDB(data);
-  return data.songs.length < before;
-}
-
-function reorderRotation(rotationId, orderedIds) {
-  const data = readDB();
-  // Assign an "order" field within that rotation based on the new sequence
-  orderedIds.forEach((id, index) => {
-    const song = data.songs.find((s) => s.id === id && s.rotation === rotationId);
-    if (song) song.order = index;
-  });
-  writeDB(data);
-  return data.songs.filter((s) => s.rotation === rotationId).sort((a, b) => a.order - b.order);
+async function reorderRotation(rotationId, orderedIds) {
+  await connectDB();
+  const bulkOps = orderedIds.map((id, index) => ({
+    updateOne: {
+      filter: { id, rotation: rotationId },
+      update: { order: index }
+    }
+  }));
+  if (bulkOps.length > 0) {
+    await Song.bulkWrite(bulkOps);
+  }
+  return getSongsByRotation(rotationId);
 }
 
 module.exports = {
+  connectDB,
   getAllSongs,
   getSongsByRotation,
   getSongById,

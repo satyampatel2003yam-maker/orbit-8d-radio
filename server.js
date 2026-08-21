@@ -89,15 +89,16 @@ app.get('/api/rotations/active', (req, res) => {
   res.json({ activeRotation: getActiveRotationId() });
 });
 
-app.get('/api/songs', (req, res) => {
+app.get('/api/songs', async (req, res) => {
   const { rotation } = req.query;
-  let songs = rotation ? db.getSongsByRotation(rotation) : db.getAllSongs();
+  let songs = rotation ? await db.getSongsByRotation(rotation) : await db.getAllSongs();
   songs = songs.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   res.json(songs);
 });
 
-app.get('/api/live/:rotationId', (req, res) => {
-  const songs = db.getSongsByRotation(req.params.rotationId)
+app.get('/api/live/:rotationId', async (req, res) => {
+  const rotationSongs = await db.getSongsByRotation(req.params.rotationId);
+  const songs = rotationSongs
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -188,7 +189,7 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
     }));
 
     const fileUrl = `${process.env.R2_PUBLIC_URL}/${storageKey}`;
-    const existingInRotation = db.getSongsByRotation(rotation);
+    const existingInRotation = await db.getSongsByRotation(rotation);
 
     const song = {
       id: 'song_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
@@ -205,7 +206,7 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
       uploadedAt: new Date().toISOString(),
     };
 
-    db.addSong(song);
+    await db.addSong(song);
     res.status(201).json(song);
   } catch (err) {
     console.error(err);
@@ -213,7 +214,7 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
   }
 });
 
-app.put('/api/admin/songs/:id', requireAdmin, (req, res) => {
+app.put('/api/admin/songs/:id', requireAdmin, async (req, res) => {
   const { title, film, year, rotation, bpm, tags } = req.body;
   const updates = {};
   if (title !== undefined) updates.title = title;
@@ -223,13 +224,13 @@ app.put('/api/admin/songs/:id', requireAdmin, (req, res) => {
   if (bpm !== undefined) updates.bpm = bpm;
   if (tags !== undefined) updates.tags = Array.isArray(tags) ? tags : String(tags).split(',').map((t) => t.trim()).filter(Boolean);
 
-  const updated = db.updateSong(req.params.id, updates);
+  const updated = await db.updateSong(req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Song not found.' });
   res.json(updated);
 });
 
 app.delete('/api/admin/songs/:id', requireAdmin, async (req, res) => {
-  const song = db.getSongById(req.params.id);
+  const song = await db.getSongById(req.params.id);
   if (!song) return res.status(404).json({ error: 'Song not found.' });
 
   if (s3Client && song.storageKey) {
@@ -249,24 +250,28 @@ app.delete('/api/admin/songs/:id', requireAdmin, async (req, res) => {
     }
   }
 
-  db.deleteSong(req.params.id);
+  await db.deleteSong(req.params.id);
   res.json({ deleted: true });
 });
 
-app.post('/api/admin/rotations/:rotationId/reorder', requireAdmin, (req, res) => {
+app.post('/api/admin/rotations/:rotationId/reorder', requireAdmin, async (req, res) => {
   const { orderedIds } = req.body;
   if (!Array.isArray(orderedIds)) {
     return res.status(400).json({ error: 'orderedIds must be an array of song ids.' });
   }
-  const result = db.reorderRotation(req.params.rotationId, orderedIds);
+  const result = await db.reorderRotation(req.params.rotationId, orderedIds);
   res.json(result);
 });
 
-app.get('/api/admin/songs', requireAdmin, (req, res) => {
-  res.json(db.getAllSongs());
+app.get('/api/admin/songs', requireAdmin, async (req, res) => {
+  res.json(await db.getAllSongs());
 });
 
-app.listen(PORT, () => {
-  console.log(`\nOrbit is running -> http://localhost:${PORT}`);
-  console.log(`Admin panel      -> http://localhost:${PORT}/admin.html\n`);
+db.connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`\nOrbit is running -> http://localhost:${PORT}`);
+    console.log(`Admin panel      -> http://localhost:${PORT}/admin.html\n`);
+  });
+}).catch(err => {
+  console.error("Failed to connect to MongoDB on startup:", err);
 });
