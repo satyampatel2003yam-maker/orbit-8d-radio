@@ -133,6 +133,24 @@ app.get('/api/listeners', (req, res) => {
   res.json({ count: activeListeners.size });
 });
 
+// User Song Requests
+app.post('/api/requests', apiLimiter, async (req, res) => {
+  const { songName } = req.body;
+  if (!songName || songName.trim().length === 0) {
+    return res.status(400).json({ error: 'Song name is required.' });
+  }
+  if (songName.length > 100) {
+    return res.status(400).json({ error: 'Song name is too long.' });
+  }
+  try {
+    const request = await db.addRequest(songName.trim());
+    res.status(201).json(request);
+  } catch (err) {
+    console.error('Error adding request:', err);
+    res.status(500).json({ error: 'Failed to submit request.' });
+  }
+});
+
 // =====================================================
 // ADMIN AUTH
 // =====================================================
@@ -265,6 +283,15 @@ app.post('/api/admin/rotations/:rotationId/reorder', requireAdmin, async (req, r
 
 app.get('/api/admin/songs', requireAdmin, async (req, res) => {
   res.json(await db.getAllSongs());
+});
+
+app.get('/api/admin/requests', requireAdmin, async (req, res) => {
+  res.json(await db.getRequests());
+});
+
+app.delete('/api/admin/requests/:id', requireAdmin, async (req, res) => {
+  await db.deleteRequest(req.params.id);
+  res.json({ deleted: true });
 });
 
 db.connectDB().then(() => {

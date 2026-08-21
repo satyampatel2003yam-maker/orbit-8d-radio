@@ -72,6 +72,16 @@
       <button type="submit" class="btn-primary" id="uploadBtn">Upload track</button>
       <div class="upload-status" id="uploadStatus"></div>
     </form>
+    <!-- User Requests Section -->
+    <div class="rotation-group">
+      <h3>User Requests <span class="count" id="requestCount">0 requests</span></h3>
+      <div class="admin-track-list" id="requestsList">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+
+    <!-- Rotations List -->
+    <div id="rotationsContainer"></div>
   </div>
 
   <div id="rotationGroups"></div>
@@ -232,6 +242,65 @@ async function reorderWithinList(listEl, draggedSongId, targetSongId){
     body: JSON.stringify({ orderedIds: ids }),
   });
   await loadRotationsAndSongs();
+}
+
+async function loadData() {
+  await Promise.all([loadRotations(), loadSongs(), loadRequests()]);
+}
+
+let requests = [];
+
+async function loadRequests() {
+  try {
+    const res = await fetch('/api/admin/requests', { headers: { 'Authorization': `Bearer ${token}` } });
+    if(res.ok) {
+      requests = await res.json();
+      renderRequests();
+    }
+  } catch(e) {}
+}
+
+function renderRequests() {
+  const listEl = document.getElementById('requestsList');
+  document.getElementById('requestCount').textContent = `${requests.length} requests`;
+  
+  if (requests.length === 0) {
+    listEl.innerHTML = '<div class="admin-track-row"><div class="meta" style="width:100%;text-align:center;">No pending requests.</div></div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  requests.forEach(req => {
+    const row = document.createElement('div');
+    row.className = 'admin-track-row';
+    const dateStr = new Date(req.submittedAt).toLocaleString();
+    
+    row.innerHTML = `
+      <div class="grow">
+        <div class="name">"${req.songName}"</div>
+        <div class="meta">Requested at: ${dateStr}</div>
+      </div>
+      <button class="icon-btn danger" onclick="deleteRequest('${req._id}')" title="Mark as Done / Delete">
+        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>
+    `;
+    listEl.appendChild(row);
+  });
+}
+
+async function deleteRequest(id) {
+  if(!confirm('Mark this request as done and remove it?')) return;
+  try {
+    const res = await fetch(`/api/admin/requests/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if(res.ok) {
+      loadRequests();
+    }
+  } catch(e) {
+    alert('Failed to delete request.');
+  }
 }
 
 async function deleteSong(id, title){

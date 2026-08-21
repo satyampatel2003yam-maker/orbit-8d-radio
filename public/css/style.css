@@ -237,7 +237,36 @@ footer a:hover{color:var(--gold-bright);}
 .login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
 
 /* ---------- MOBILE OPTIMIZATION FOR 4K BACKGROUNDS ---------- */
-/* iOS Safari has a bug where 'background-attachment: fixed' causes extreme zoom & blurriness. */
+.request-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  color: var(--deepest);
+  border: none;
+  border-radius: 100px;
+  padding: 12px 20px;
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  cursor: pointer;
+  z-index: 40;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.request-fab:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 32px rgba(201,162,75,0.3);
+}
+.request-fab svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
 @media (max-width: 768px) {
   body.bg-night-bass, 
   body.bg-chill-evening, 

@@ -15,7 +15,13 @@ const songSchema = new mongoose.Schema({
   uploadedAt: String
 });
 
+const requestSchema = new mongoose.Schema({
+  songName: String,
+  submittedAt: String
+});
+
 const Song = mongoose.models.Song || mongoose.model('Song', songSchema);
+const Request = mongoose.models.Request || mongoose.model('Request', requestSchema);
 
 let isConnected = false;
 async function connectDB() {
@@ -27,6 +33,24 @@ async function connectDB() {
   await mongoose.connect(process.env.MONGO_URI);
   isConnected = true;
   console.log("Connected to MongoDB!");
+}
+
+async function addRequest(songName) {
+  await connectDB();
+  const req = new Request({ songName, submittedAt: new Date().toISOString() });
+  await req.save();
+  return req.toObject();
+}
+
+async function getRequests() {
+  await connectDB();
+  return Request.find({}).sort({ submittedAt: -1 }).lean();
+}
+
+async function deleteRequest(id) {
+  await connectDB();
+  const result = await Request.deleteOne({ _id: id });
+  return result.deletedCount > 0;
 }
 
 async function getAllSongs() {
@@ -86,4 +110,7 @@ module.exports = {
   updateSong,
   deleteSong,
   reorderRotation,
+  addRequest,
+  getRequests,
+  deleteRequest
 };
