@@ -11,7 +11,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const db = require('./db');
-const { ROTATIONS, getActiveRotationId, getLivePosition } = require('./rotations');
+const { getActiveRotationId, getLivePosition } = require('./rotations');
 const { requireAdmin } = require('./auth');
 
 const app = express();
@@ -79,14 +79,14 @@ const upload = multer({
 // PUBLIC ROUTES
 // =====================================================
 
-app.get('/api/rotations', (req, res) => {
-  res.json(ROTATIONS.map(({ id, name, startHour, endHour, description }) => ({
-    id, name, startHour, endHour, description,
-  })));
+app.get('/api/rotations', async (req, res) => {
+  const rotations = await db.getRotations();
+  res.json(rotations);
 });
 
-app.get('/api/rotations/active', (req, res) => {
-  res.json({ activeRotation: getActiveRotationId() });
+app.get('/api/rotations/active', async (req, res) => {
+  const rotations = await db.getRotations();
+  res.json({ activeRotation: getActiveRotationId(rotations) });
 });
 
 app.get('/api/songs', async (req, res) => {
@@ -291,6 +291,74 @@ app.get('/api/admin/requests', requireAdmin, async (req, res) => {
 
 app.delete('/api/admin/requests/:id', requireAdmin, async (req, res) => {
   await db.deleteRequest(req.params.id);
+  res.json({ deleted: true });
+});
+
+// Manage Rotations
+app.post('/api/admin/rotations', requireAdmin, upload.single('bgImage'), async (req, res) => {
+  try {
+    const { name, startHour, endHour, description } = req.body;
+    let bgImageUrl = '/images/night-bass-bg.jpg'; // default fallback
+    
+    if (req.file && s3Client) {
+      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageKey = `bg/${Date.now()}-${Math.floor(Math.random() * 1000)}-${safeName}`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: storageKey,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      }));
+      bgImageUrl = `${process.env.R2_PUBLIC_URL}/${storageKey}`;
+    }
+
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const newRot = await db.addRotation({
+      id,
+      name,
+      startHour: startHour === '' ? null : Number(startHour),
+      endHour: endHour === '' ? null : Number(endHour),
+      description,
+      bgImageUrl
+    });
+    res.status(201).json(newRot);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create rotation' });
+  }
+});
+
+app.put('/api/admin/rotations/:id', requireAdmin, upload.single('bgImage'), async (req, res) => {
+  try {
+    const { name, startHour, endHour, description } = req.body;
+    const updates = {};
+    if (name) updates.name = name;
+    if (startHour !== undefined) updates.startHour = startHour === '' ? null : Number(startHour);
+    if (endHour !== undefined) updates.endHour = endHour === '' ? null : Number(endHour);
+    if (description !== undefined) updates.description = description;
+
+    if (req.file && s3Client) {
+      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageKey = `bg/${Date.now()}-${Math.floor(Math.random() * 1000)}-${safeName}`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: storageKey,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      }));
+      updates.bgImageUrl = `${process.env.R2_PUBLIC_URL}/${storageKey}`;
+    }
+
+    const updated = await db.updateRotation(req.params.id, updates);
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update rotation' });
+  }
+});
+
+app.delete('/api/admin/rotations/:id', requireAdmin, async (req, res) => {
+  await db.deleteRotation(req.params.id);
   res.json({ deleted: true });
 });
 

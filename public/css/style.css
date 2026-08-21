@@ -15,43 +15,17 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{height:100%;}
 body{
-  background:
-    radial-gradient(ellipse 900px 600px at 50% -10%, rgba(201,162,75,0.08), transparent 60%),
-    var(--deepest);
-  color:var(--cream);
+  margin:0;
   font-family:'Inter',sans-serif;
-  overflow-x:hidden;
+  background-color:var(--deepest);
+  color:var(--cream);
   min-height:100vh;
-}
-body.bg-night-bass {
-  background: 
-    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/night-bass-bg.jpg') no-repeat center center fixed;
+  display:flex;
+  flex-direction:column;
   background-size: cover;
-}
-body.bg-chill-evening {
-  background: 
-    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/chill-evening-bg.jpg') no-repeat center center fixed;
-  background-size: cover;
-}
-body.bg-study-8d {
-  background: 
-    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/study-8d-bg.jpg') no-repeat center center fixed;
-  background-size: cover;
-}
-body.bg-sunrise {
-  background: 
-    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/sunrise-bg.jpg') no-repeat center center fixed;
-  background-size: cover;
-}
-body.bg-on-request {
-  background: 
-    linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/on-request-bg.jpg') no-repeat center center fixed;
-  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 ::selection{background:var(--gold-dim);color:var(--deepest);}
 a{color:inherit;text-decoration:none;}
@@ -267,12 +241,10 @@ footer a:hover{color:var(--gold-bright);}
   fill: currentColor;
 }
 
+/* ---------- MOBILE OPTIMIZATION FOR 4K BACKGROUNDS ---------- */
+/* iOS Safari has a bug where 'background-attachment: fixed' causes extreme zoom & blurriness. */
 @media (max-width: 768px) {
-  body.bg-night-bass, 
-  body.bg-chill-evening, 
-  body.bg-study-8d, 
-  body.bg-sunrise, 
-  body.bg-on-request {
+  body {
     background-attachment: scroll !important;
     background-position: center top !important; /* Shows the best part of the image on tall screens */
   }

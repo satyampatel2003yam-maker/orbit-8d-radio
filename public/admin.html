@@ -72,6 +72,48 @@
       <button type="submit" class="btn-primary" id="uploadBtn">Upload track</button>
       <div class="upload-status" id="uploadStatus"></div>
     </form>
+    
+    <!-- Manage Playlists Section -->
+    <div class="upload-card" style="margin-bottom:32px;">
+      <h2>Manage Playlists (Rotations)</h2>
+      <div id="manageRotationsList" style="margin-bottom: 20px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+      
+      <form id="playlistForm" style="display:none;" onsubmit="event.preventDefault(); savePlaylist();">
+        <h3 id="playlistFormTitle" style="font-family:'Fraunces',serif; font-size:15px; margin-bottom:12px;">Create New Playlist</h3>
+        <input type="hidden" id="playlistId">
+        <div class="form-grid">
+          <div class="field">
+            <label>Name</label>
+            <input type="text" id="playlistName" required>
+          </div>
+          <div class="field">
+            <label>Description</label>
+            <input type="text" id="playlistDesc">
+          </div>
+          <div class="field">
+            <label>Start Hour (0-23)</label>
+            <input type="number" id="playlistStart" min="0" max="23">
+          </div>
+          <div class="field">
+            <label>End Hour (0-23)</label>
+            <input type="number" id="playlistEnd" min="0" max="23">
+          </div>
+          <div class="field full">
+            <label>Background Image (JPG/PNG)</label>
+            <input type="file" id="playlistBg" accept="image/*">
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">Leave empty to keep existing background.</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn-primary" id="playlistSaveBtn">Save Playlist</button>
+          <button type="button" class="btn-primary" style="background:transparent; border:1px solid var(--line); color:var(--muted);" onclick="closePlaylistForm()">Cancel</button>
+          <button type="button" class="btn-primary" style="background:transparent; border:1px solid var(--danger); color:var(--danger); display:none;" id="playlistDeleteBtn" onclick="deletePlaylist()">Delete</button>
+        </div>
+        <div class="upload-status" id="playlistStatus"></div>
+      </form>
+      <button class="btn-primary" id="newPlaylistBtn" onclick="openPlaylistForm()">+ New Playlist</button>
+    </div>
+
     <!-- User Requests Section -->
     <div class="rotation-group">
       <h3>User Requests <span class="count" id="requestCount">0 requests</span></h3>
@@ -159,10 +201,128 @@ async function loadRotationsAndSongs(){
 
   const sRes = await authedFetch(`${API}/api/admin/songs`);
   allSongs = await sRes.json();
+  populateUploadDropdown();
+  renderManagePlaylists();
   renderRotationGroups();
 }
 
-function renderRotationGroups(){
+function renderManagePlaylists() {
+  const listEl = document.getElementById('manageRotationsList');
+  listEl.innerHTML = '';
+  rotations.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-logout';
+    btn.textContent = r.name;
+    btn.onclick = () => openPlaylistForm(r);
+    listEl.appendChild(btn);
+  });
+}
+
+function openPlaylistForm(r = null) {
+  const form = document.getElementById('playlistForm');
+  const btn = document.getElementById('newPlaylistBtn');
+  const delBtn = document.getElementById('playlistDeleteBtn');
+  document.getElementById('playlistStatus').textContent = '';
+  
+  if (r) {
+    document.getElementById('playlistFormTitle').textContent = 'Edit Playlist: ' + r.name;
+    document.getElementById('playlistId').value = r.id;
+    document.getElementById('playlistName').value = r.name;
+    document.getElementById('playlistDesc').value = r.description || '';
+    document.getElementById('playlistStart').value = r.startHour !== null ? r.startHour : '';
+    document.getElementById('playlistEnd').value = r.endHour !== null ? r.endHour : '';
+    delBtn.style.display = 'inline-block';
+  } else {
+    document.getElementById('playlistFormTitle').textContent = 'Create New Playlist';
+    document.getElementById('playlistId').value = '';
+    document.getElementById('playlistName').value = '';
+    document.getElementById('playlistDesc').value = '';
+    document.getElementById('playlistStart').value = '';
+    document.getElementById('playlistEnd').value = '';
+    delBtn.style.display = 'none';
+  }
+  document.getElementById('playlistBg').value = '';
+  
+  form.style.display = 'block';
+  btn.style.display = 'none';
+}
+
+function closePlaylistForm() {
+  document.getElementById('playlistForm').style.display = 'none';
+  document.getElementById('newPlaylistBtn').style.display = 'inline-block';
+}
+
+async function deletePlaylist() {
+  const id = document.getElementById('playlistId').value;
+  if(!id) return;
+  if(!confirm('Are you sure you want to delete this playlist?')) return;
+  
+  try {
+    const res = await authedFetch(`${API}/api/admin/rotations/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await loadRotationsAndSongs();
+      closePlaylistForm();
+    } else {
+      alert('Failed to delete playlist');
+    }
+  } catch(e) {
+    alert('Network error');
+  }
+}
+
+async function savePlaylist() {
+  const id = document.getElementById('playlistId').value;
+  const name = document.getElementById('playlistName').value.trim();
+  const desc = document.getElementById('playlistDesc').value.trim();
+  const start = document.getElementById('playlistStart').value;
+  const end = document.getElementById('playlistEnd').value;
+  const fileInput = document.getElementById('playlistBg');
+  
+  if (!name) return;
+  
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('description', desc);
+  formData.append('startHour', start);
+  formData.append('endHour', end);
+  if (fileInput.files[0]) {
+    formData.append('bgImage', fileInput.files[0]);
+  }
+  
+  const statusEl = document.getElementById('playlistStatus');
+  const btn = document.getElementById('playlistSaveBtn');
+  btn.disabled = true;
+  statusEl.className = 'upload-status';
+  statusEl.textContent = 'Saving...';
+  
+  try {
+    const url = id ? `/api/admin/rotations/${id}` : `/api/admin/rotations`;
+    const method = id ? 'PUT' : 'POST';
+    
+    const res = await fetch(url, {
+      method,
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    
+    if (res.ok) {
+      statusEl.className = 'upload-status ok';
+      statusEl.textContent = 'Saved successfully!';
+      await loadRotationsAndSongs();
+      setTimeout(closePlaylistForm, 1000);
+    } else {
+      const data = await res.json();
+      statusEl.className = 'upload-status err';
+      statusEl.textContent = data.error || 'Failed to save.';
+    }
+  } catch(e) {
+    statusEl.className = 'upload-status err';
+    statusEl.textContent = 'Network error.';
+  }
+  btn.disabled = false;
+}
+
+function populateUploadDropdown() {
   const container = document.getElementById('rotationGroups');
   container.innerHTML = '';
   rotations.forEach(r => {

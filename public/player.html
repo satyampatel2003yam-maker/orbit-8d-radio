@@ -160,11 +160,12 @@ async function loadRotations(){
   const { activeRotation } = await activeRes.json();
   currentRotation = activeRotation;
   
-  if(currentRotation === 'night-bass') document.body.classList.add('bg-night-bass');
-  if(currentRotation === 'chill-evening') document.body.classList.add('bg-chill-evening');
-  if(currentRotation === 'study-8d') document.body.classList.add('bg-study-8d');
-  if(currentRotation === 'sunrise') document.body.classList.add('bg-sunrise');
-  if(currentRotation === 'on-request') document.body.classList.add('bg-on-request');
+  // We don't hardcode classes anymore!
+  // Find current rotation data to set its background
+  const rotData = rotations.find(r => r.id === currentRotation) || rotations[0];
+  if(rotData && rotData.bgImageUrl) {
+    document.body.style.backgroundImage = `linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)), url('${rotData.bgImageUrl}')`;
+  }
 
   const tabsEl = document.getElementById('rotationTabs');
   tabsEl.innerHTML = '';
@@ -183,18 +184,9 @@ function switchRotation(id){
     el.classList.toggle('active', rotations[i].id === id);
   });
   
-  document.body.classList.remove('bg-night-bass', 'bg-chill-evening', 'bg-study-8d', 'bg-sunrise', 'bg-on-request');
-  
-  if(id === 'night-bass') {
-    document.body.classList.add('bg-night-bass');
-  } else if(id === 'chill-evening') {
-    document.body.classList.add('bg-chill-evening');
-  } else if(id === 'study-8d') {
-    document.body.classList.add('bg-study-8d');
-  } else if(id === 'sunrise') {
-    document.body.classList.add('bg-sunrise');
-  } else if(id === 'on-request') {
-    document.body.classList.add('bg-on-request');
+  const rotData = rotations.find(r => r.id === id);
+  if(rotData && rotData.bgImageUrl) {
+    document.body.style.backgroundImage = `linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)), url('${rotData.bgImageUrl}')`;
   }
   
   loadLive();

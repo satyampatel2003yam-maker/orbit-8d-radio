@@ -3,14 +3,6 @@
 // a listener joining right now should be dropped into - so everyone hears the same song
 // at the same position, like a real radio station.
 
-const ROTATIONS = [
-  { id: 'night-bass', name: 'Night Bass', startHour: 22, endHour: 5, description: 'For the stretch between two towns at 2am' },
-  { id: 'study-8d', name: 'Study 8D', startHour: 9, endHour: 18, description: "What's actually playing while you focus" },
-  { id: 'chill-evening', name: 'Chill Evening', startHour: 18, endHour: 22, description: 'The wind-down hours' },
-  { id: 'sunrise', name: 'Sunrise', startHour: 5, endHour: 9, description: 'Loud half, generator on, speakers out' },
-  { id: 'on-request', name: 'On Request', startHour: null, endHour: null, description: 'Plays only when you ask for it' },
-];
-
 function nowIST() {
   // IST is UTC+5:30, no daylight saving
   const now = new Date();
@@ -18,10 +10,11 @@ function nowIST() {
   return new Date(utcMs + 5.5 * 60 * 60 * 1000);
 }
 
-function getActiveRotationId() {
+function getActiveRotationId(rotations) {
+  if (!rotations || rotations.length === 0) return null;
   const hour = nowIST().getHours();
-  for (const r of ROTATIONS) {
-    if (r.startHour === null) continue; // on-request is never "active" automatically
+  for (const r of rotations) {
+    if (r.startHour === null || r.startHour === undefined) continue; // on-request is never "active" automatically
     if (r.startHour < r.endHour) {
       if (hour >= r.startHour && hour < r.endHour) return r.id;
     } else {
@@ -29,7 +22,7 @@ function getActiveRotationId() {
       if (hour >= r.startHour || hour < r.endHour) return r.id;
     }
   }
-  return ROTATIONS[0].id;
+  return rotations[0].id;
 }
 
 // Given a rotation's ordered songs (with duration in seconds) and a reference epoch,
@@ -55,4 +48,4 @@ function getLivePosition(songs) {
   return { song: playable[0], offsetSeconds: 0 };
 }
 
-module.exports = { ROTATIONS, getActiveRotationId, getLivePosition, nowIST };
+module.exports = { getActiveRotationId, getLivePosition, nowIST };
