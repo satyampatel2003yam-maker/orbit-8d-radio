@@ -5,7 +5,8 @@ const songSchema = new mongoose.Schema({
   title: String,
   film: String,
   year: String,
-  rotation: String,
+  rotation: String, // refers to Section
+  playlistId: String, // refers to Playlist
   bpm: String,
   tags: [String],
   fileUrl: String,
@@ -30,9 +31,17 @@ const rotationSchema = new mongoose.Schema({
   order: Number
 });
 
+const playlistSchema = new mongoose.Schema({
+  id: String,
+  name: String,
+  sectionId: String, // refers to rotation.id
+  order: Number
+});
+
 const Song = mongoose.models.Song || mongoose.model('Song', songSchema);
 const Request = mongoose.models.Request || mongoose.model('Request', requestSchema);
 const Rotation = mongoose.models.Rotation || mongoose.model('Rotation', rotationSchema);
+const Playlist = mongoose.models.Playlist || mongoose.model('Playlist', playlistSchema);
 
 let isConnected = false;
 async function connectDB() {
@@ -58,6 +67,32 @@ async function connectDB() {
     await Rotation.insertMany(defaults);
     console.log("Seeded default rotations.");
   }
+}
+
+// Playlist Methods
+async function getPlaylists() {
+  await connectDB();
+  return Playlist.find({}).sort({ order: 1 }).lean();
+}
+
+async function addPlaylist(data) {
+  await connectDB();
+  const count = await Playlist.countDocuments({ sectionId: data.sectionId });
+  data.order = count;
+  const pl = new Playlist(data);
+  await pl.save();
+  return pl.toObject();
+}
+
+async function updatePlaylist(id, updates) {
+  await connectDB();
+  return Playlist.findOneAndUpdate({ id }, updates, { new: true }).lean();
+}
+
+async function deletePlaylist(id) {
+  await connectDB();
+  const result = await Playlist.deleteOne({ id });
+  return result.deletedCount > 0;
 }
 
 // Rotation Methods
@@ -167,5 +202,9 @@ module.exports = {
   getRotations,
   addRotation,
   updateRotation,
-  deleteRotation
+  deleteRotation,
+  getPlaylists,
+  addPlaylist,
+  updatePlaylist,
+  deletePlaylist
 };

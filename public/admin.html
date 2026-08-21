@@ -45,8 +45,12 @@
           <input type="text" id="f-title" required placeholder="e.g. Tujhe Dekha To — 8D">
         </div>
         <div class="field">
-          <label>Rotation</label>
-          <select id="f-rotation" required></select>
+          <label>Section</label>
+          <select id="f-rotation" required onchange="updateUploadPlaylistDropdown()"></select>
+        </div>
+        <div class="field">
+          <label>Playlist</label>
+          <select id="f-playlist" required></select>
         </div>
         <div class="field">
           <label>Film</label>
@@ -73,13 +77,13 @@
       <div class="upload-status" id="uploadStatus"></div>
     </form>
     
-    <!-- Manage Playlists Section -->
+    <!-- Manage Sections -->
     <div class="upload-card" style="margin-bottom:32px;">
-      <h2>Manage Playlists (Rotations)</h2>
+      <h2>Manage Sections (Top Tabs)</h2>
       <div id="manageRotationsList" style="margin-bottom: 20px; display:flex; flex-wrap:wrap; gap:8px;"></div>
       
       <form id="playlistForm" style="display:none;" onsubmit="event.preventDefault(); savePlaylist();">
-        <h3 id="playlistFormTitle" style="font-family:'Fraunces',serif; font-size:15px; margin-bottom:12px;">Create New Playlist</h3>
+        <h3 id="playlistFormTitle" style="font-family:'Fraunces',serif; font-size:15px; margin-bottom:12px;">Edit Section</h3>
         <input type="hidden" id="playlistId">
         <div class="form-grid">
           <div class="field">
@@ -105,13 +109,40 @@
           </div>
         </div>
         <div style="display:flex; gap:10px;">
-          <button type="submit" class="btn-primary" id="playlistSaveBtn">Save Playlist</button>
+          <button type="submit" class="btn-primary" id="playlistSaveBtn">Save Section</button>
           <button type="button" class="btn-primary" style="background:transparent; border:1px solid var(--line); color:var(--muted);" onclick="closePlaylistForm()">Cancel</button>
-          <button type="button" class="btn-primary" style="background:transparent; border:1px solid var(--danger); color:var(--danger); display:none;" id="playlistDeleteBtn" onclick="deletePlaylist()">Delete</button>
+          <!-- Sections cannot be deleted as they are foundational, only edited -->
         </div>
         <div class="upload-status" id="playlistStatus"></div>
       </form>
-      <button class="btn-primary" id="newPlaylistBtn" onclick="openPlaylistForm()">+ New Playlist</button>
+    </div>
+
+    <!-- Manage Playlists -->
+    <div class="upload-card" style="margin-bottom:32px;">
+      <h2>Manage Playlists (Folders)</h2>
+      <div id="manageFoldersList" style="margin-bottom: 20px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+      
+      <form id="folderForm" style="display:none;" onsubmit="event.preventDefault(); saveFolder();">
+        <h3 id="folderFormTitle" style="font-family:'Fraunces',serif; font-size:15px; margin-bottom:12px;">Create New Playlist</h3>
+        <input type="hidden" id="folderId">
+        <div class="form-grid">
+          <div class="field">
+            <label>Name</label>
+            <input type="text" id="folderName" required placeholder="e.g. Lofi Beats">
+          </div>
+          <div class="field">
+            <label>Parent Section</label>
+            <select id="folderSection" required></select>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn-primary" id="folderSaveBtn">Save Playlist</button>
+          <button type="button" class="btn-primary" style="background:transparent; border:1px solid var(--line); color:var(--muted);" onclick="closeFolderForm()">Cancel</button>
+          <button type="button" class="btn-primary" style="background:transparent; border:1px solid var(--danger); color:var(--danger); display:none;" id="folderDeleteBtn" onclick="deleteFolder()">Delete</button>
+        </div>
+        <div class="upload-status" id="folderStatus"></div>
+      </form>
+      <button class="btn-primary" id="newFolderBtn" onclick="openFolderForm()">+ New Playlist</button>
     </div>
 
     <!-- User Requests Section -->
@@ -133,6 +164,7 @@
 const API = '';
 let token = localStorage.getItem('orbit_admin_token') || null;
 let rotations = [];
+let playlists = [];
 let allSongs = [];
 let draggedId = null;
 
@@ -196,16 +228,37 @@ async function loadRotationsAndSongs(){
   const rRes = await fetch(`${API}/api/rotations`);
   rotations = await rRes.json();
 
+  const pRes = await fetch(`${API}/api/playlists`);
+  playlists = await pRes.json();
+
   const select = document.getElementById('f-rotation');
   select.innerHTML = rotations.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  
+  const fSectionSelect = document.getElementById('folderSection');
+  fSectionSelect.innerHTML = rotations.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+
+  updateUploadPlaylistDropdown();
 
   const sRes = await authedFetch(`${API}/api/admin/songs`);
   allSongs = await sRes.json();
-  populateUploadDropdown();
-  renderManagePlaylists();
-  renderRotationGroups();
+  
+  renderManagePlaylists(); // Section manager
+  renderManageFolders(); // Playlist manager
+  renderRotationGroups(); // Songs view
 }
 
+function updateUploadPlaylistDropdown() {
+  const secId = document.getElementById('f-rotation').value;
+  const plSelect = document.getElementById('f-playlist');
+  const filtered = playlists.filter(p => p.sectionId === secId);
+  if (filtered.length === 0) {
+    plSelect.innerHTML = '<option value="">No playlists in this section!</option>';
+  } else {
+    plSelect.innerHTML = filtered.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
+}
+
+// ============ SECTION (ROTATION) MANAGER ============
 function renderManagePlaylists() {
   const listEl = document.getElementById('manageRotationsList');
   listEl.innerHTML = '';
@@ -220,56 +273,26 @@ function renderManagePlaylists() {
 
 function openPlaylistForm(r = null) {
   const form = document.getElementById('playlistForm');
-  const btn = document.getElementById('newPlaylistBtn');
-  const delBtn = document.getElementById('playlistDeleteBtn');
+  // Sections cannot be created from UI anymore to preserve the logic, only edited
   document.getElementById('playlistStatus').textContent = '';
   
   if (r) {
-    document.getElementById('playlistFormTitle').textContent = 'Edit Playlist: ' + r.name;
+    document.getElementById('playlistFormTitle').textContent = 'Edit Section: ' + r.name;
     document.getElementById('playlistId').value = r.id;
     document.getElementById('playlistName').value = r.name;
     document.getElementById('playlistDesc').value = r.description || '';
     document.getElementById('playlistStart').value = r.startHour !== null ? r.startHour : '';
     document.getElementById('playlistEnd').value = r.endHour !== null ? r.endHour : '';
-    delBtn.style.display = 'inline-block';
-  } else {
-    document.getElementById('playlistFormTitle').textContent = 'Create New Playlist';
-    document.getElementById('playlistId').value = '';
-    document.getElementById('playlistName').value = '';
-    document.getElementById('playlistDesc').value = '';
-    document.getElementById('playlistStart').value = '';
-    document.getElementById('playlistEnd').value = '';
-    delBtn.style.display = 'none';
+    document.getElementById('playlistBg').value = '';
+    form.style.display = 'block';
   }
-  document.getElementById('playlistBg').value = '';
-  
-  form.style.display = 'block';
-  btn.style.display = 'none';
 }
 
 function closePlaylistForm() {
   document.getElementById('playlistForm').style.display = 'none';
-  document.getElementById('newPlaylistBtn').style.display = 'inline-block';
 }
 
-async function deletePlaylist() {
-  const id = document.getElementById('playlistId').value;
-  if(!id) return;
-  if(!confirm('Are you sure you want to delete this playlist?')) return;
-  
-  try {
-    const res = await authedFetch(`${API}/api/admin/rotations/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      await loadRotationsAndSongs();
-      closePlaylistForm();
-    } else {
-      alert('Failed to delete playlist');
-    }
-  } catch(e) {
-    alert('Network error');
-  }
-}
-
+// ... the rest is savePlaylist()
 async function savePlaylist() {
   const id = document.getElementById('playlistId').value;
   const name = document.getElementById('playlistName').value.trim();
@@ -278,7 +301,7 @@ async function savePlaylist() {
   const end = document.getElementById('playlistEnd').value;
   const fileInput = document.getElementById('playlistBg');
   
-  if (!name) return;
+  if (!name || !id) return;
   
   const formData = new FormData();
   formData.append('name', name);
@@ -296,11 +319,8 @@ async function savePlaylist() {
   statusEl.textContent = 'Saving...';
   
   try {
-    const url = id ? `/api/admin/rotations/${id}` : `/api/admin/rotations`;
-    const method = id ? 'PUT' : 'POST';
-    
-    const res = await fetch(url, {
-      method,
+    const res = await fetch(`/api/admin/rotations/${id}`, {
+      method: 'PUT',
       headers: { 'Authorization': `Bearer ${token}` },
       body: formData
     });
@@ -322,25 +342,148 @@ async function savePlaylist() {
   btn.disabled = false;
 }
 
-function populateUploadDropdown() {
+// ============ FOLDER (PLAYLIST) MANAGER ============
+function renderManageFolders() {
+  const listEl = document.getElementById('manageFoldersList');
+  listEl.innerHTML = '';
+  playlists.forEach(pl => {
+    const sec = rotations.find(r => r.id === pl.sectionId);
+    const secName = sec ? sec.name : 'Unknown';
+    const btn = document.createElement('button');
+    btn.className = 'btn-logout';
+    btn.innerHTML = `<strong>${pl.name}</strong> <span style="font-size:10px; opacity:0.7;">(${secName})</span>`;
+    btn.onclick = () => openFolderForm(pl);
+    listEl.appendChild(btn);
+  });
+}
+
+function openFolderForm(pl = null) {
+  const form = document.getElementById('folderForm');
+  const btn = document.getElementById('newFolderBtn');
+  const delBtn = document.getElementById('folderDeleteBtn');
+  document.getElementById('folderStatus').textContent = '';
+  
+  if (pl) {
+    document.getElementById('folderFormTitle').textContent = 'Edit Playlist: ' + pl.name;
+    document.getElementById('folderId').value = pl.id;
+    document.getElementById('folderName').value = pl.name;
+    document.getElementById('folderSection').value = pl.sectionId;
+    delBtn.style.display = 'inline-block';
+  } else {
+    document.getElementById('folderFormTitle').textContent = 'Create New Playlist';
+    document.getElementById('folderId').value = '';
+    document.getElementById('folderName').value = '';
+    delBtn.style.display = 'none';
+  }
+  
+  form.style.display = 'block';
+  btn.style.display = 'none';
+}
+
+function closeFolderForm() {
+  document.getElementById('folderForm').style.display = 'none';
+  document.getElementById('newFolderBtn').style.display = 'inline-block';
+}
+
+async function deleteFolder() {
+  const id = document.getElementById('folderId').value;
+  if(!id) return;
+  if(!confirm('Are you sure you want to delete this playlist?')) return;
+  
+  try {
+    const res = await authedFetch(`${API}/api/admin/playlists/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await loadRotationsAndSongs();
+      closeFolderForm();
+    } else {
+      alert('Failed to delete playlist');
+    }
+  } catch(e) {
+    alert('Network error');
+  }
+}
+
+async function saveFolder() {
+  const id = document.getElementById('folderId').value;
+  const name = document.getElementById('folderName').value.trim();
+  const sectionId = document.getElementById('folderSection').value;
+  
+  if (!name || !sectionId) return;
+  
+  const statusEl = document.getElementById('folderStatus');
+  const btn = document.getElementById('folderSaveBtn');
+  btn.disabled = true;
+  statusEl.className = 'upload-status';
+  statusEl.textContent = 'Saving...';
+  
+  try {
+    const url = id ? `/api/admin/playlists/${id}` : `/api/admin/playlists`;
+    const method = id ? 'PUT' : 'POST';
+    
+    const res = await authedFetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, sectionId })
+    });
+    
+    if (res.ok) {
+      statusEl.className = 'upload-status ok';
+      statusEl.textContent = 'Saved successfully!';
+      await loadRotationsAndSongs();
+      setTimeout(closeFolderForm, 1000);
+    } else {
+      const data = await res.json();
+      statusEl.className = 'upload-status err';
+      statusEl.textContent = data.error || 'Failed to save.';
+    }
+  } catch(e) {
+    statusEl.className = 'upload-status err';
+    statusEl.textContent = 'Network error.';
+  }
+  btn.disabled = false;
+}
+
+function renderRotationGroups() {
   const container = document.getElementById('rotationGroups');
   container.innerHTML = '';
   rotations.forEach(r => {
-    const songs = allSongs.filter(s => s.rotation === r.id).sort((a,b) => (a.order??0) - (b.order??0));
+    const secPlaylists = playlists.filter(p => p.sectionId === r.id).sort((a,b) => (a.order??0) - (b.order??0));
+    const secSongs = allSongs.filter(s => s.rotation === r.id);
+    
     const group = document.createElement('div');
     group.className = 'rotation-group';
-    group.innerHTML = `<h3>${r.name} <span class="count">${songs.length} track${songs.length===1?'':'s'}</span></h3>`;
-
-    const list = document.createElement('div');
-    list.className = 'admin-track-list';
-    list.dataset.rotation = r.id;
-
-    if (!songs.length) {
-      list.innerHTML = '<div class="empty-state">No tracks yet.</div>';
-    } else {
-      songs.forEach(s => list.appendChild(buildTrackRow(s)));
+    group.innerHTML = `<h2>${r.name} <span class="count">${secSongs.length} track${secSongs.length===1?'':'s'}</span></h2>`;
+    
+    if (secPlaylists.length === 0) {
+      group.innerHTML += '<div class="empty-state">No playlists in this section yet. Create one above!</div>';
     }
-    group.appendChild(list);
+
+    secPlaylists.forEach(pl => {
+      const plSongs = secSongs.filter(s => s.playlistId === pl.id).sort((a,b) => (a.order??0) - (b.order??0));
+      
+      const plGroup = document.createElement('div');
+      plGroup.style.marginBottom = '20px';
+      plGroup.style.background = 'rgba(255,255,255,0.02)';
+      plGroup.style.border = '1px solid var(--line)';
+      plGroup.style.borderRadius = '8px';
+      plGroup.style.padding = '12px';
+      
+      plGroup.innerHTML = `<h3 style="margin-top:0; margin-bottom:12px; font-size:14px; opacity:0.8;">&#128193; ${pl.name} <span class="count">${plSongs.length} tracks</span></h3>`;
+      
+      const list = document.createElement('div');
+      list.className = 'admin-track-list';
+      list.dataset.playlist = pl.id;
+      list.dataset.rotation = r.id;
+
+      if (!plSongs.length) {
+        list.innerHTML = '<div class="empty-state">No tracks in this playlist.</div>';
+      } else {
+        plSongs.forEach(s => list.appendChild(buildTrackRow(s)));
+      }
+      plGroup.appendChild(list);
+      group.appendChild(plGroup);
+    });
+
     container.appendChild(group);
   });
 }

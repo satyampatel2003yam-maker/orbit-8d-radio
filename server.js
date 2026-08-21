@@ -89,6 +89,11 @@ app.get('/api/rotations/active', async (req, res) => {
   res.json({ activeRotation: getActiveRotationId(rotations) });
 });
 
+app.get('/api/playlists', async (req, res) => {
+  const playlists = await db.getPlaylists();
+  res.json(playlists);
+});
+
 app.get('/api/songs', async (req, res) => {
   const { rotation } = req.query;
   let songs = rotation ? await db.getSongsByRotation(rotation) : await db.getAllSongs();
@@ -183,9 +188,9 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
     if (!s3Client) return res.status(500).json({ error: 'R2 storage is not configured on this server.' });
     if (!req.file) return res.status(400).json({ error: 'No audio file was uploaded.' });
 
-    const { title, film, year, rotation, bpm, tags } = req.body;
-    if (!title || !rotation) {
-      return res.status(400).json({ error: 'Title and rotation are required.' });
+    const { title, film, year, rotation, playlistId, bpm, tags } = req.body;
+    if (!title || !rotation || !playlistId) {
+      return res.status(400).json({ error: 'Title, Section, and Playlist are required.' });
     }
 
     let duration = 0;
@@ -207,7 +212,7 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
     }));
 
     const fileUrl = `${process.env.R2_PUBLIC_URL}/${storageKey}`;
-    const existingInRotation = await db.getSongsByRotation(rotation);
+    const existingInRotation = await db.getSongsByRotation(rotation); // Or by playlist? We'll keep order by rotation for live stream
 
     const song = {
       id: 'song_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
@@ -215,6 +220,7 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
       film: film || '',
       year: year || '',
       rotation,
+      playlistId,
       bpm: bpm || '',
       tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       fileUrl,
@@ -233,12 +239,13 @@ app.post('/api/admin/songs', requireAdmin, upload.single('audio'), async (req, r
 });
 
 app.put('/api/admin/songs/:id', requireAdmin, async (req, res) => {
-  const { title, film, year, rotation, bpm, tags } = req.body;
+  const { title, film, year, rotation, playlistId, bpm, tags } = req.body;
   const updates = {};
   if (title !== undefined) updates.title = title;
   if (film !== undefined) updates.film = film;
   if (year !== undefined) updates.year = year;
   if (rotation !== undefined) updates.rotation = rotation;
+  if (playlistId !== undefined) updates.playlistId = playlistId;
   if (bpm !== undefined) updates.bpm = bpm;
   if (tags !== undefined) updates.tags = Array.isArray(tags) ? tags : String(tags).split(',').map((t) => t.trim()).filter(Boolean);
 
@@ -357,8 +364,35 @@ app.put('/api/admin/rotations/:id', requireAdmin, upload.single('bgImage'), asyn
   }
 });
 
-app.delete('/api/admin/rotations/:id', requireAdmin, async (req, res) => {
-  await db.deleteRotation(req.params.id);
+// Manage Playlists
+app.post('/api/admin/playlists', requireAdmin, async (req, res) => {
+  try {
+    const { name, sectionId } = req.body;
+    if (!name || !sectionId) return res.status(400).json({ error: 'Name and sectionId are required.' });
+    
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
+    const newPl = await db.addPlaylist({ id, name, sectionId });
+    res.status(201).json(newPl);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create playlist' });
+  }
+});
+
+app.put('/api/admin/playlists/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, sectionId } = req.body;
+    const updates = {};
+    if (name) updates.name = name;
+    if (sectionId) updates.sectionId = sectionId;
+    const updated = await db.updatePlaylist(req.params.id, updates);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update playlist' });
+  }
+});
+
+app.delete('/api/admin/playlists/:id', requireAdmin, async (req, res) => {
+  await db.deletePlaylist(req.params.id);
   res.json({ deleted: true });
 });
 

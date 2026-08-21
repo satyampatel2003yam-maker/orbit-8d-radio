@@ -60,13 +60,17 @@
   <footer>
     8D Adda &middot; Live Radio &nbsp;&middot;&nbsp; <a href="/admin.html">Admin</a>
   </footer>
+  <div class="bottom-bar">
+    <button class="action-btn" id="reqBtn">
+      <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+      Request Song
+    </button>
+  </div>
 </div>
 
-<!-- Request Song Button -->
-<button class="request-fab" onclick="document.getElementById('requestModal').classList.add('active')">
-  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-  Request Song
-</button>
+<div class="playlists-area" id="playlistsContainer">
+  <!-- Filled via JS -->
+</div>
 
 <!-- Request Song Modal -->
 <div class="modal-overlay" id="requestModal" onclick="if(event.target===this) this.classList.remove('active')">
@@ -89,10 +93,16 @@
 <script>
 const API = '';
 let rotations = [];
+let playlists = [];
 let currentRotation = null;
 let currentSongId = null;
 const audioEl = document.getElementById('audioEl');
 const clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// ====== LOCAL MODE OVERRIDE ======
+let localMode = false;
+let localQueue = [];
+let localIndex = 0;
 
 // ====== SCRUBBER LOGIC ======
 let isDragging = false;
@@ -137,6 +147,25 @@ function onDrag(e) {
   dragTimer = setTimeout(() => { isDragging = false; }, 4000); // Wait 4s before snapping back
 }
 
+function syncAudio(force = false) {
+  if (localMode) return; // Completely decouple from server timing
+  if (!currentSongId) return;
+  
+  const now = Date.now();
+  const elapsed = (now - syncReferenceClientTime) / 1000;
+  let target = syncBaseOffset + elapsed;
+
+  if (target >= currentDuration) {
+    loadLive(); // Track ended, fetch next
+    return;
+  }
+  
+  if (force || Math.abs(audioEl.currentTime - target) > 1.5) {
+    audioEl.currentTime = target;
+  }
+  updateScrubberUI(target, currentDuration);
+}
+
 function stopDrag() {
   if (isDragging) {
      if (dragTimer) clearTimeout(dragTimer);
@@ -179,6 +208,10 @@ async function loadRotations(){
 }
 
 function switchRotation(id){
+  localMode = false;
+  document.getElementById('playlistsContainer').style.opacity = '1';
+  document.getElementById('playlistsContainer').style.pointerEvents = 'auto';
+
   currentRotation = id;
   document.querySelectorAll('.rotation-tab').forEach((el, i) => {
     el.classList.toggle('active', rotations[i].id === id);
@@ -193,8 +226,10 @@ function switchRotation(id){
 }
 
 async function loadLive(){
+  if (localMode) return; // Stop fetching live updates if we are in local override mode
+  
   const label = rotations.find(r => r.id === currentRotation)?.name || '';
-  document.getElementById('playlistLabel').textContent = `Up next · ${label} rotation`;
+  document.getElementById('playlistLabel').textContent = `Up next \u2014 ${label} rotation`;
 
   try {
     const res = await fetch(`${API}/api/live/${currentRotation}`);
@@ -202,15 +237,105 @@ async function loadLive(){
       document.getElementById('trackTitle').textContent = 'Nothing uploaded yet';
       document.getElementById('trackMeta').textContent = 'Add tracks to this rotation from the admin panel';
       document.getElementById('playlist').innerHTML = '<div class="empty-state">This rotation is empty.</div>';
+      document.getElementById('playlistsContainer').innerHTML = '';
       audioEl.pause();
       return;
     }
     const data = await res.json();
     renderNowPlaying(data.song, data.offsetSeconds);
     renderPlaylist(data.playlist, data.song.id);
+    renderPlaylistsContainer(data.playlist); // data.playlist is ALL songs in the section
   } catch (e) {
     console.error(e);
   }
+}
+
+function renderPlaylistsContainer(allSectionSongs) {
+  const container = document.getElementById('playlistsContainer');
+  if (localMode) return; // Don't re-render if user is interacting with it locally
+  container.innerHTML = '';
+  
+  const secPlaylists = playlists.filter(p => p.sectionId === currentRotation).sort((a,b) => (a.order??0) - (b.order??0));
+  if (secPlaylists.length === 0) return;
+  
+  secPlaylists.forEach(pl => {
+    const plSongs = allSectionSongs.filter(s => s.playlistId === pl.id).sort((a,b) => (a.order??0) - (b.order??0));
+    if (plSongs.length === 0) return;
+    
+    const card = document.createElement('div');
+    card.className = 'pl-card';
+    
+    const header = document.createElement('div');
+    header.className = 'pl-header';
+    header.innerHTML = `
+      <div class="pl-title">${pl.name}</div>
+      <button class="pl-play-btn" onclick="playLocalPlaylist('${pl.id}')">PLAY LIST</button>
+    `;
+    card.appendChild(header);
+    
+    const songsList = document.createElement('div');
+    songsList.className = 'pl-songs';
+    
+    plSongs.forEach((song, idx) => {
+      const row = document.createElement('div');
+      row.className = 'pl-song-row' + (currentSongId === song.id ? ' playing' : '');
+      const mins = Math.floor((song.duration||0)/60);
+      const secs = String((song.duration||0)%60).padStart(2,'0');
+      
+      row.innerHTML = `
+        <div>
+          <div class="pl-song-title">${song.title}</div>
+          <div class="pl-song-meta">${[song.film, song.year].filter(Boolean).join(', ')}</div>
+        </div>
+        <div class="pl-song-duration">${mins}:${secs}</div>
+      `;
+      row.onclick = () => playLocalPlaylist(pl.id, idx);
+      songsList.appendChild(row);
+    });
+    
+    card.appendChild(songsList);
+    container.appendChild(card);
+  });
+}
+
+function playLocalPlaylist(playlistId, startIndex = 0) {
+  localMode = true; // Enter override mode!
+  
+  // Find songs for this playlist from the UI (or we can just fetch all songs, but we have them in DOM basically)
+  // Wait, we need the actual song objects. Let's fetch them to be safe.
+  fetch(`${API}/api/songs?rotation=${currentRotation}`).then(r => r.json()).then(songs => {
+    localQueue = songs.filter(s => s.playlistId === playlistId).sort((a,b) => (a.order??0) - (b.order??0));
+    localIndex = startIndex;
+    if (localQueue.length === 0) return;
+    
+    const pl = playlists.find(p => p.id === playlistId);
+    document.getElementById('playlistLabel').textContent = `On Demand \u2014 ${pl ? pl.name : 'Playlist'}`;
+    document.getElementById('playlistsContainer').style.opacity = '0.5';
+    document.getElementById('playlistsContainer').style.pointerEvents = 'none';
+    
+    playLocalCurrent();
+  });
+}
+
+function playLocalCurrent() {
+  if (localIndex >= localQueue.length) {
+    localIndex = 0; // loop
+  }
+  const song = localQueue[localIndex];
+  if (!song) return;
+  
+  currentSongId = song.id;
+  
+  document.getElementById('trackTitle').textContent = song.title;
+  document.getElementById('trackMeta').textContent = [song.film, song.year].filter(Boolean).join(', ');
+  
+  // Clear scrubber UI
+  audioEl.src = song.fileUrl;
+  audioEl.currentTime = 0;
+  audioEl.play().catch(e => console.log('Autoplay blocked', e));
+  
+  updateScrubberUI(0, song.duration);
+  renderPlaylist(localQueue.slice(localIndex + 1).concat(localQueue.slice(0, localIndex)), song.id);
 }
 
 function renderNowPlaying(song, offsetSeconds){
@@ -363,8 +488,20 @@ async function submitRequest() {
 setInterval(loadLive, 15000);
 setInterval(loadListeners, 15000);
 
+audioEl.addEventListener('ended', () => {
+  if (localMode) {
+    localIndex++;
+    playLocalCurrent();
+  } else {
+    // Force a fresh sync for Live mode
+    loadLive();
+  }
+});
+
 (async function init(){
   await loadRotations();
+  const pRes = await fetch(`${API}/api/playlists`);
+  playlists = await pRes.json();
   await loadLive();
   await loadListeners();
 })();
