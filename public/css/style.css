@@ -95,7 +95,8 @@ button{font-family:inherit;}
 .welcome-foot{position:absolute;bottom:28px;font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;}
 
 /* ---------- MAIN APP SCREEN ---------- */
-#app{min-height:100vh;display:flex;flex-direction:column;}
+#app{min-height:100vh;flex-direction:column;}
+#app.active { display: flex; }
 
 .glass-app-container {
   max-width: 600px;
