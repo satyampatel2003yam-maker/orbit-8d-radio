@@ -29,6 +29,16 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Global API rate limiter to prevent DDoS attacks
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 150, // Limit each IP to 150 requests per minute
+  message: { error: 'Too many requests from this IP, please try again after a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', apiLimiter);
+
 if (!process.env.JWT_SECRET || !process.env.ADMIN_PASSWORD_HASH) {
   console.warn(
     '\n[warning] .env is missing JWT_SECRET or ADMIN_PASSWORD_HASH.\n' +
