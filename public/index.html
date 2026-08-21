@@ -44,8 +44,7 @@
 
 <!-- ============ MAIN APP SCREEN ============ -->
 <section id="app" class="screen">
-  <div class="glass-app-container">
-    <div class="topbar">
+  <div class="topbar">
     <div class="logo"><span class="dotmark"></span> 8D Adda</div>
     <div class="rotations" id="rotationTabs"></div>
     <div class="listeners"><span class="live-dot"></span> <span id="listenerCount">--</span> listening</div>
@@ -93,7 +92,6 @@
       Request Song
     </button>
   </div>
-  </div> <!-- /.glass-app-container -->
 
   <!-- Request Song Modal -->
   <div class="modal-overlay" id="requestModal" onclick="if(event.target===this) this.classList.remove('active')">
@@ -233,10 +231,10 @@ async function loadRotations(){
   const { activeRotation } = await activeRes.json();
   currentRotation = activeRotation;
   
-  // Set background for BOTH welcome and app screen (same body background)
+  // Set background for both screens
   const rotData = rotations.find(r => r.id === currentRotation) || rotations[0];
   if(rotData && rotData.bgImageUrl) {
-    document.body.style.backgroundImage = `linear-gradient(135deg, rgba(20,16,12,0.72) 0%, rgba(40,28,16,0.55) 50%, rgba(20,16,12,0.82) 100%), url('${rotData.bgImageUrl}')`;
+    document.body.style.backgroundImage = `linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)), url('${rotData.bgImageUrl}')`;
   }
 
   const tabsEl = document.getElementById('rotationTabs');
@@ -262,7 +260,7 @@ function switchRotation(id){
   
   const rotData = rotations.find(r => r.id === id);
   if(rotData && rotData.bgImageUrl) {
-    document.body.style.backgroundImage = `linear-gradient(135deg, rgba(20,16,12,0.72) 0%, rgba(40,28,16,0.55) 50%, rgba(20,16,12,0.82) 100%), url('${rotData.bgImageUrl}')`;
+    document.body.style.backgroundImage = `linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)), url('${rotData.bgImageUrl}')`;
   }
   
   loadLive();
