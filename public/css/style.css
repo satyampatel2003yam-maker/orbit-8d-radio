@@ -38,7 +38,7 @@ body.bg-chill-evening {
 body.bg-study-8d {
   background: 
     linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/study-8d-bg.png') no-repeat center center fixed;
+    url('/images/study-8d-bg.jpg') no-repeat center center fixed;
   background-size: cover;
 }
 body.bg-sunrise {
