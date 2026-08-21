@@ -26,7 +26,7 @@ body{
 body.bg-night-bass {
   background: 
     linear-gradient(to bottom, rgba(20, 16, 12, 0.4), var(--deepest)),
-    url('/images/night-bass-bg.png') no-repeat center center fixed;
+    url('/images/night-bass-bg.jpg') no-repeat center center fixed;
   background-size: cover;
 }
 body.bg-chill-evening {
